@@ -6,6 +6,7 @@ function [vMembrane, n, m, h, iLeak, iK, iNa, timeStamps] = neuron_oscillator_va
     eqPotCa, gCaFast, gCaSlow, ...
     eqPotHypPol,  gHypPol, ...
     eqPotSyn, gSynS, ...
+    tau_decay, tau_rise, ...
     capacitance, ...
     simulationTime, timeStepSize)
 
@@ -70,6 +71,14 @@ taumKFast_inf = @(V) tau(200, 0.03, 0.005, 0.011, V);
 
 hKFast_inf = @(V) fInf(160, 0.063, V);
 tauhKFast = @(V) tau(-300, 0.055, 0.026, 0.0085, V);
+
+
+%% Synapse model
+
+syn_t_peak = tau_decay * tau_rise * log(tau_decay / tau_rise)/(tau_decay - tau_rise);
+syn_f_norm = 1/((-exp(-t_peak / tau_rise) + exp(-t_peak/tau_decay)));
+
+
 
 
 %% Freaky matlab ode function declaration:
@@ -162,64 +171,119 @@ tauhKFast = @(V) tau(-300, 0.055, 0.026, 0.0085, V);
         R_hKFast = state(28);
         d_R_hKFast = (hKFast_inf(R_vMembrane) - R_hKFast) / tauhKFast(R_vMembrane);
 
+        % Synapse stuff
+        L_syn_h = state(29);
+        d_L_syn_h = - L_syn_h / tau_rise + R_vMembrane;
+
+        R_syn_h = state(30);
+        d_R_syn_h = - R_syn_h / tau_rise + L_vMembrane;
+        
+        L_syn_g = state(31);
+        d_L_syn_g = -L_syn_g / tau_decay + L_syn_h;
+
+        R_syn_g = state(32);
+        d_R_syn_g = - R_syn_g / tau_decay + R_syn_h;
 
 
-        L_iNaFast = gNaFast * (L_mNaFast ^ 3) * (L_hNaFast) * (L_vMembrane - eqPotNa);
-        R_iNaFast = gNaFast * (R_mNaFast ^ 3) * (R_hNaFast) * (R_vMembrane - eqPotNa);
-
-        L_iNaPers = gNaPers * (L_mNaPers) * (L_vMembrane - eqPotNa);
-
-        % marked differently in word doc eq sheet
-        L_iCaFast = gCaFast * (L_mCaFast ^ 2) * (L_hCaFast) * (L_vMembrane - eqPotCa)
-
-        L_iCaSlow = gCaSlow * (L_mCaSlow ^ 2) * (L_hCaSlow) * (L_vMembrane - eqPotCa);
-
+% --- Left and Right Currents ---
+        
+        % Fast Sodium
+        L_iNaFast = gNaFast * (L_mNaFast ^ 3) * L_hNaFast * (L_vMembrane - eqPotNa);
+        R_iNaFast = gNaFast * (R_mNaFast ^ 3) * R_hNaFast * (R_vMembrane - eqPotNa);
+        
+        % Persistent Sodium
+        L_iNaPers = gNaPers * L_mNaPers * (L_vMembrane - eqPotNa);
+        R_iNaPers = gNaPers * R_mNaPers * (R_vMembrane - eqPotNa);
+        
+        % Fast Calcium
+        L_iCaFast = gCaFast * (L_mCaFast ^ 2) * L_hCaFast * (L_vMembrane - eqPotCa);
+        R_iCaFast = gCaFast * (R_mCaFast ^ 2) * R_hCaFast * (R_vMembrane - eqPotCa);
+        
+        % Slow Calcium
+        L_iCaSlow = gCaSlow * (L_mCaSlow ^ 2) * L_hCaSlow * (L_vMembrane - eqPotCa);
+        R_iCaSlow = gCaSlow * (R_mCaSlow ^ 2) * R_hCaSlow * (R_vMembrane - eqPotCa);
+        
+        % Hyperpolarization Activated Cation
         L_iHypPol = gHypPol * (L_mHypPol ^ 2) * (L_vMembrane - eqPotHypPol);
-
-        L_iKDelRect = gKDelRect * (L_mKDelRect ^ 2) * (L_hKDelRect) * (L_vMembrane - eqPotK);
-
+        R_iHypPol = gHypPol * (R_mHypPol ^ 2) * (R_vMembrane - eqPotHypPol);
+        
+        % Delayed Rectifier Like K
+        L_iKDelRect = gKDelRect * (L_mKDelRect ^ 2) * L_hKDelRect * (L_vMembrane - eqPotK);
+        R_iKDelRect = gKDelRect * (R_mKDelRect ^ 2) * R_hKDelRect * (R_vMembrane - eqPotK);
+        
+        % Persistent Potassium Current K2
         L_iKPers = gKPers * (L_mKPers ^ 2) * (L_vMembrane - eqPotK);
+        R_iKPers = gKPers * (R_mKPers ^ 2) * (R_vMembrane - eqPotK);
         
-        L_iKFast = gKFast * (L_mKFast ^ 2) * (L_hKFast) * (L_vMembrane - eqPotK);
-
+        % Fast Potassium
+        L_iKFast = gKFast * (L_mKFast ^ 2) * L_hKFast * (L_vMembrane - eqPotK);
+        R_iKFast = gKFast * (R_mKFast ^ 2) * R_hKFast * (R_vMembrane - eqPotK);
+        
+        % Leak
         L_iLeak = gLeak * (L_vMembrane - eqPotLeak);
+        R_iLeak = gLeak * (R_vMembrane - eqPotLeak);
 
+        L_iSynS = gSynS * syn_f_norm * L_syn_g * (R_vMembrane - eqPotSyn);
+        R_iSynS = gSynS * syn_f_norm * R_syn_g * (L_vMembrane - eqPotSyn);
         
 
-        ileak_ = gLeak  * (vMembrane_ - eqPotLeak);
-        iK_  = gKMax  *      n_^4 * (vMembrane_ - eqPotK);
-        iNa_ = gNaMax * m_^3 * h_ * (vMembrane_ - eqPotNa);
+        d_L_vMembrane = - (1 / capacitance) * (L_iNaFast + L_iNaPers + L_iCaFast + L_iCaSlow + L_iHypPol + L_iKDelRect + L_iKPers + L_iKFast + L_iLeak + L_iSynS);
+        d_R_vMembrane = - (1 / capacitance) * (R_iNaFast + R_iNaPers + R_iCaFast + R_iCaSlow + R_iHypPol + R_iKDelRect + R_iKPers + R_iKFast + R_iLeak + R_iSynS);
 
-        dV = (1 / capacitance) * (iInput(t) - ileak_ - iK_ - iNa_);
-        dn = (get_n_ss(vMembrane_) - n_) / get_n_tau(vMembrane_);
-        dm = (get_m_ss(vMembrane_) - m_) / get_m_tau(vMembrane_);
-        dh = (get_h_ss(vMembrane_) - h_) / get_h_tau(vMembrane_);
-
-        dfdt = [dV; dn; dm; dh];
-
+dfdt = [d_L_vMembrane; d_R_vMembrane; ...
+                d_L_mNaFast;   d_R_mNaFast;   ...
+                d_L_hNaFast;   d_R_hNaFast;   ...
+                d_L_mNaPers;   d_R_mNaPers;   ...
+                d_L_mCaFast;   d_R_mCaFast;   ...
+                d_L_hCaFast;   d_R_hCaFast;   ...
+                d_L_mCaSlow;   d_R_mCaSlow;   ...
+                d_L_hCaSlow;   d_R_hCaSlow;   ...
+                d_L_mHypPol;   d_R_mHypPol;   ...
+                d_L_mKDelRect; d_R_mKDelRect; ...
+                d_L_hKDelRect; d_R_hKDelRect; ...
+                d_L_mKPers;    d_R_mKPers;    ...
+                d_L_mKFast;    d_R_mKFast;    ...
+                d_L_hKFast;    d_R_hKFast;    ...
+                d_L_syn_h;     d_R_syn_h;     ...
+                d_L_syn_g;     d_R_syn_g];
     end
 
-% Initial Conditions
-% V, nprob, mprob, hprob
-state0 = [restPotential, get_n_ss(restPotential), get_m_ss(restPotential), get_h_ss(restPotential)];
+
+
+%% Initial Conditions 
+rp = restPotential;
+state0 = [ ...
+    rp,                rp,                ...  % 1-2:   L/R vMembrane
+    mNaFast_inf(rp),   mNaFast_inf(rp),   ...  % 3-4:   L/R mNaFast
+    hNaFast_inf(rp),   hNaFast_inf(rp),   ...  % 5-6:   L/R hNaFast
+    mNaPers_inf(rp),   mNaPers_inf(rp),   ...  % 7-8:   L/R mNaPers
+    mCaFast_inf(rp),   mCaFast_inf(rp),   ...  % 9-10:  L/R mCaFast
+    hCaFast_inf(rp),   hCaFast_inf(rp),   ...  % 11-12: L/R hCaFast
+    mCaSlow_inf(rp),   mCaSlow_inf(rp),   ...  % 13-14: L/R mCaSlow
+    hCaSlow_inf(rp),   hCaSlow_inf(rp),   ...  % 15-16: L/R hCaSlow
+    mHypPol_inf(rp),   mHypPol_inf(rp),   ...  % 17-18: L/R mHypPol
+    mKDelRect_inf(rp), mKDelRect_inf(rp), ...  % 19-20: L/R mKDelRect
+    hKDelRect_inf(rp), hKDelRect_inf(rp), ...  % 21-22: L/R hKDelRect
+    mKPers_inf(rp),    mKPers_inf(rp),    ...  % 23-24: L/R mKPers
+    mKFast_inf(rp),    mKFast_inf(rp),    ...  % 25-26: L/R mKFast
+    hKFast_inf(rp),    hKFast_inf(rp),    ...  % 27-28: L/R hKFast
+    0, 0,                                 ...  % 29-30: L/R syn_h (zero at rest)
+    0, 0                                  ...  % 31-32: L/R syn_g (zero at rest)
+];
 
 %% Solve
-tSpan = 0: timeStepSize: simulationTime;
+%tSpan = 0: timeStepSize: simulationTime;
 options = odeset('RelTol',1e-6, 'AbsTol', 1e-8);
+
 % Perform the numerical integration using ODE solver
 %[timeStamps, solution] = ode15s(@odesys, tSpan, state0, options);
 [timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0, options);
 %[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0);
 
-    % Fix output dims
-    timeStamps = timeStamps';
-    vMembrane  = solution(:, 1)';
-    n          = solution(:, 2)';
-    m          = solution(:, 3)';
-    h          = solution(:, 4)';
 
-        %% Calculate Currents for compatability
-    iLeak = gLeak  *           n.^4 .* (vMembrane - eqPotLeak);
-    iK    = gKMax  *           n.^4 .* (vMembrane - eqPotK);
-    iNa   = gNaMax * m.^3 .* h     .* (vMembrane - eqPotNa);
+%% Output
+timeStamps  = timeStamps';
+L_vMembrane = solution(:, 1)';
+R_vMembrane = solution(:, 2)';
+
 end
