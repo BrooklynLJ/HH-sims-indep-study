@@ -59,7 +59,9 @@ state0 = [restPotential, get_n_ss(restPotential), get_m_ss(restPotential), get_h
 tSpan = 0: timeStepSize: simulationTime;
 options = odeset('RelTol',1e-6, 'AbsTol', 1e-8);
 % Perform the numerical integration using ODE solver
-[timeStamps, solution] = ode15s(@odesys, tSpan, state0, options);
+%[timeStamps, solution] = ode15s(@odesys, tSpan, state0, options);
+[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0, options);
+%[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0);
 
     % Fix output dims
     timeStamps = timeStamps';
