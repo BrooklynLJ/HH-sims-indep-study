@@ -1,20 +1,24 @@
+% ---- Corrected call (all SI: V, S, F, seconds) ----
 [L_v, R_v, t] = neuron_oscillator_variable_step_integrate( ...
-    -65, ...
-    -60, 8e-6, ...
-    45, 200e-6, 7e-6, ...
-    -70, 100e-6, 80e-6, 80e-6, ...
-    135, 5e-6, 3.2e-6, ...
-    -21, 4e-6, ...
-    -62.5, 60e-6, ...
-    2, 11, ...
-    5e-10, ...
-    75);
+    -0.060,           ...  % restPotential (V)
+    -0.060, 8e-9,     ...  % eqPotLeak (V), gLeak (S)
+     0.045, 200e-9, 7e-9, ...  % eqPotNa, gNaFast, gNaPers
+    -0.070, 100e-9, 80e-9, 80e-9, ...  % eqPotK, gKDelRect, gKPers, gKFast
+     0.135, 5e-9, 3.2e-9, ...  % eqPotCa, gCaFast, gCaSlow
+    -0.021, 4e-9,     ...  % eqPotHypPol, gHypPol
+    -0.0625, 60e-9,   ...  % eqPotSyn, gSynS
+     0.002, 0.011, -0.020,   ...  % tau_rise, tau_decay, h0Thresh (s)  <-- was ms
+     5e-10,           ...  % capacitance (F)
+     8);                  % simulationTime (s)  <-- was ms; need ~75 s for ~7 cycles
 
+% ---- Plot (output is in V, convert to mV) ----
 figure;
-plot(t, L_v * 1000, 'b', t, R_v * 1000, 'r', LineWidth=1.5);
-xlabel('Time (ms)');
-ylabel('Membrane Potential (mV)');
-title('Half-Center Oscillator');
-legend('Left neuron', 'Right neuron');
-xlim([0, 75]);
-grid on;
+subplot(2,1,1);
+plot(t, L_v * 1000, 'b', 'LineWidth',1.5);
+xlabel('Time (s)'); ylabel('Membrane Potential (mV)');
+title('Left Neuron'); grid on;
+
+subplot(2,1,2);
+plot(t, R_v * 1000, 'r', 'LineWidth',1.5);
+xlabel('Time (s)'); ylabel('Membrane Potential (mV)');
+title('Right Neuron'); grid on;

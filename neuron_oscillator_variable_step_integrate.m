@@ -6,7 +6,7 @@ function [L_vMembrane, R_vMembrane, timeStamps] = neuron_oscillator_variable_ste
     eqPotCa, gCaFast, gCaSlow, ...
     eqPotHypPol,  gHypPol, ...
     eqPotSyn, gSynS, ...
-    tau_rise, tau_decay, ...
+    tau_rise, tau_decay, h0Thresh, ...
     capacitance, ...
     simulationTime)
 
@@ -38,21 +38,28 @@ function [L_vMembrane, R_vMembrane, timeStamps] = neuron_oscillator_variable_ste
 
 %% 2. Gating Variable Dynamics (Hodgkin-Huxley)
 fInf = @(a,b,V) 1/(1+exp(a*(V+b)));
-fhInf = @(V) 1/(1 + 2*exp(180*(V+0.049)) + exp(500*(V+0.049)));
+
+% DIFFERENT IN WORD DOC
+fhInf = @(V) 1/(1 + 2*exp(180*(V+0.047)) + exp(500*(V+0.047)));
 tau = @(a, b, c, d, V) c + d /(1 + exp(a*(V+b)));
 %tauhKF = @(V) 1.5 + 8/1+exp(-100 *(V+0.022)) + (-2.2)/cosh(100 *(V+0.04));
 
 %Set up all DE auxillary functions
+
+% persistent Potassium Current K2;
+mKPers_inf = @(V) fInf(-83,0.02, V);
+taumKPers = @(V) tau(200, 0.035, 0.057, 0.043, V);
+
+%Na Persistent 
+mNaPers_inf = @(V) fInf(-120, 0.039, V);
+taumNaPers = @(V) tau(400, 0.057, 0.01, 0.2, V);
+
 %Na Fast
 mNaFast_inf = @(V) fInf(-150, 0.029, V);
 taumNaFast = @(V) 0.0001;
 
 hNaFast_inf = @(V) fInf(500, 0.03, V);
 tauhNaFast = @(V) 0.004 + 0.006/(1 + exp(500 *(V + 0.028))) + 0.01/(cosh(300 * (V + 0.027)));
-
-%Na Persistent 
-mNaPers_inf = @(V) fInf(-120, 0.039, V);
-taumNaPers = @(V) tau(400, 0.057, 0.01, 0.2, V);
 
 % Ca Fast
 mCaFast_inf = @(V) fInf(-600, 0.0467, V);
@@ -68,20 +75,12 @@ taumCaSlow = @(V) tau(-400,0.0487, 0.005, 0.134, V);
 hCaSlow_inf = @(V) fInf(360, 0.055, V);
 tauhCaSlow = @(V) tau(-250, 0.043, 0.2, 5.25, V);
 
-% Hyperpolarization activated cation 
-mHypPol_inf = @(V) fhInf(V);
-taumHypPol = @(V) tau(-100, 0.073, 0.7, 1.7, V);
-
 % Delayed Rectifier Like K
 mKDelRect_inf = @(V) fInf(-143, 0.021, V);
 taumKDelRect = @(V) tau(150, 0.016, 0.001, 0.011, V);
 
 hKDelRect_inf = @(V) fInf(111,0.028,V);
 tauhKDelRect = @(V) tau(-143,0.013, 0.5, 0.2, V);
-
-% persistent Potassium Current K2;
-mKPers_inf = @(V) fInf(-83,0.02, V);
-taumKPers = @(V) tau(200, 0.035, 0.057, 0.043, V);
 
 % Fast potasium current
 mKFast_inf = @(V) fInf(-130,0.044,V);
@@ -90,14 +89,18 @@ taumKFast_inf = @(V) tau(200, 0.03, 0.005, 0.011, V);
 hKFast_inf = @(V) fInf(160, 0.063, V);
 tauhKFast = @(V) tau(-300, 0.055, 0.026, 0.0085, V);
 
+% Hyperpolarization activated cation 
+mHypPol_inf = @(V) fhInf(V);
+taumHypPol = @(V) tau(-100, 0.073, 0.7, 1.7, V);
+
 
 %% Synapse model
 
 syn_t_peak = tau_decay * tau_rise * log(tau_decay / tau_rise)/(tau_decay - tau_rise);
 syn_f_norm = 1/((-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak/tau_decay)));
 
-syn_h0_norm = (-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak/tau_decay))/(tau_rise + tau_decay);
-h0 = @(V) (V > -20) * (syn_h0_norm);
+syn_h0_norm = (-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak/tau_decay))/(tau_rise * tau_decay);
+h0 = @(V) (V > h0Thresh) * (syn_h0_norm);
 
 %% Freaky matlab ode function declaration:
     function dfdt = odesys(t,state)
