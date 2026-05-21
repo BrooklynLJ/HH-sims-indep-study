@@ -1,14 +1,32 @@
-function [vMembrane, n, m, h, iLeak, iK, iNa, timeStamps] = neuron_oscillator_variable_step_integrate(...
-    iInput, restPotential, ...
+function [L_vMembrane, R_vMembrane, timeStamps] = neuron_oscillator_variable_step_integrate(...
+    restPotential, ...
     eqPotLeak, gLeak, ...
     eqPotNa, gNaFast, gNaPers, ...
     eqPotK, gKDelRect, gKPers, gKFast, ...
     eqPotCa, gCaFast, gCaSlow, ...
     eqPotHypPol,  gHypPol, ...
     eqPotSyn, gSynS, ...
-    tau_decay, tau_rise, ...
+    tau_rise, tau_decay, ...
     capacitance, ...
-    simulationTime, timeStepSize)
+    simulationTime)
+
+% restPotential = -65;
+% 
+% %different than the previously used values? all mV & mS (conductances)
+% eqPotLeak = -60; gLeak = 8E-6;
+% eqPotNa = 45;    gNaFast = 200E-6; gNaPers = 7E-6;
+% eqPotK = -70;    gKDelRect = 100E-6; gKPers = 80E-6; gKFast = 80E-6;
+% eqPotCa = 135;   gCaFast = 5E-6; gCaSlow = 3.2E-6;
+% eqPotHypPol = -21; gHypPol = 4E-6;
+% eqPotSyn = -62.5; gSynS = 60E-6;
+% 
+% %ms
+% tau_rise = 2; tau_decay = 11;
+% %different than before, why?
+% capacitance = 5E-10;
+% simulationTime = 75; timeStepSize = 0.01; % ms
+
+
 
 % Description: ODE15s integration of the Hodgkin-Huxley model.
 % Units: Time (ms), Current (uA/cm^2), Potential (mV), Conductance (mS/cm^2)
@@ -76,10 +94,10 @@ tauhKFast = @(V) tau(-300, 0.055, 0.026, 0.0085, V);
 %% Synapse model
 
 syn_t_peak = tau_decay * tau_rise * log(tau_decay / tau_rise)/(tau_decay - tau_rise);
-syn_f_norm = 1/((-exp(-t_peak / tau_rise) + exp(-t_peak/tau_decay)));
+syn_f_norm = 1/((-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak/tau_decay)));
 
-
-
+syn_h0_norm = (-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak/tau_decay))/(tau_rise + tau_decay);
+h0 = @(V) (V > -20) * (syn_h0_norm);
 
 %% Freaky matlab ode function declaration:
     function dfdt = odesys(t,state)
@@ -173,10 +191,10 @@ syn_f_norm = 1/((-exp(-t_peak / tau_rise) + exp(-t_peak/tau_decay)));
 
         % Synapse stuff
         L_syn_h = state(29);
-        d_L_syn_h = - L_syn_h / tau_rise + R_vMembrane;
+        d_L_syn_h = - L_syn_h / tau_rise + h0(R_vMembrane);
 
         R_syn_h = state(30);
-        d_R_syn_h = - R_syn_h / tau_rise + L_vMembrane;
+        d_R_syn_h = - R_syn_h / tau_rise + h0(L_vMembrane);
         
         L_syn_g = state(31);
         d_L_syn_g = -L_syn_g / tau_decay + L_syn_h;
@@ -273,12 +291,12 @@ state0 = [ ...
 
 %% Solve
 %tSpan = 0: timeStepSize: simulationTime;
-options = odeset('RelTol',1e-6, 'AbsTol', 1e-8);
+%options = odeset('RelTol',1e-6, 'AbsTol', 1e-8);
 
 % Perform the numerical integration using ODE solver
 %[timeStamps, solution] = ode15s(@odesys, tSpan, state0, options);
-[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0, options);
-%[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0);
+%[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0, options);
+[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0);
 
 
 %% Output
