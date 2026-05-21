@@ -1,4 +1,4 @@
-function [L_vMembrane, R_vMembrane, timeStamps] = neuron_oscillator_variable_step_integrate(...
+function [timeStamps, solution] = neuron_oscillator_variable_step_integrate(...
     restPotential, ...
     eqPotLeak, gLeak, ...
     eqPotNa, gNaFast, gNaPers, ...
@@ -244,8 +244,8 @@ h0 = @(V) (V > h0Thresh) * (syn_h0_norm);
         L_iLeak = gLeak * (L_vMembrane - eqPotLeak);
         R_iLeak = gLeak * (R_vMembrane - eqPotLeak);
 
-        L_iSynS = gSynS * syn_f_norm * L_syn_g * (R_vMembrane - eqPotSyn);
-        R_iSynS = gSynS * syn_f_norm * R_syn_g * (L_vMembrane - eqPotSyn);
+        L_iSynS = gSynS * syn_f_norm * L_syn_g * (L_vMembrane - eqPotSyn);
+        R_iSynS = gSynS * syn_f_norm * R_syn_g * (R_vMembrane - eqPotSyn);
         
 
         d_L_vMembrane = - (1 / capacitance) * (L_iNaFast + L_iNaPers + L_iCaFast + L_iCaSlow + L_iHypPol + L_iKDelRect + L_iKPers + L_iKFast + L_iLeak + L_iSynS);
@@ -273,8 +273,9 @@ dfdt = [d_L_vMembrane; d_R_vMembrane; ...
 
 %% Initial Conditions 
 rp = restPotential;
+
 state0 = [ ...
-    rp,                rp,                ...  % 1-2:   L/R vMembrane
+    rp,                rp+0.02,                ...  % 1-2:   L/R vMembrane
     mNaFast_inf(rp),   mNaFast_inf(rp),   ...  % 3-4:   L/R mNaFast
     hNaFast_inf(rp),   hNaFast_inf(rp),   ...  % 5-6:   L/R hNaFast
     mNaPers_inf(rp),   mNaPers_inf(rp),   ...  % 7-8:   L/R mNaPers
@@ -301,10 +302,5 @@ state0 = [ ...
 %[timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0, options);
 [timeStamps, solution] = ode15s(@odesys, [0, simulationTime], state0);
 
-
-%% Output
-timeStamps  = timeStamps';
-L_vMembrane = solution(:, 1)';
-R_vMembrane = solution(:, 2)';
 
 end
