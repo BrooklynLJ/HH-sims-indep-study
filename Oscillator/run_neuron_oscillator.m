@@ -1,14 +1,11 @@
 %All voltages in V, all conductances in S, all times in seconds, capacitances in F 
-
 restPotential = -0.060;
-
 eqPotLeak = restPotential;  gLeak     = 8e-9;
 eqPotNa   =  0.045;  gNaFast   = 200e-9;  gNaPers   = 7e-9;
 eqPotK    = -0.070;  gKDelRect = 100e-9;  gKPers    = 80e-9;  gKFast = 80e-9;
 eqPotCa   =  0.135;  gCaFast   = 5e-9;    gCaSlow   = 3.2e-9;
 eqPotHypPol = -0.021; gHypPol  = 4e-9;
 eqPotSyn  = -0.0625; gSynS     = 60e-9;
-
 tau_rise  = 0.002;   tau_decay = 0.011; %(seconds) 
 h0Thresh  = -0.020;
 capacitance   = 5e-10;
@@ -16,7 +13,6 @@ simulationTime = 30;
 
 % ---- Corrected call (all SI: V, S, F, seconds) ----
 tic
-
 [timeStamps, solution] = neuron_oscillator_variable_step_integrate( ...
     restPotential, ...
     eqPotLeak, gLeak, ...
@@ -79,42 +75,31 @@ L_iKFast   = zeros(1,nT); R_iKFast   = zeros(1,nT);
 L_iLeak    = zeros(1,nT); R_iLeak    = zeros(1,nT);
 L_iSynS    = zeros(1,nT); R_iSynS    = zeros(1,nT);
 
-
 % ---- Recompute syn_f_norm (mirrors logic inside integrator) ----
 syn_t_peak = tau_decay * tau_rise * log(tau_decay / tau_rise) / (tau_decay - tau_rise);
 syn_f_norm = 1 / (-exp(-syn_t_peak / tau_rise) + exp(-syn_t_peak / tau_decay));
-
 
 % Loop vectorized across timesteps (vector operations)
 % Use elementwise operations on vectors already available
 % all of them are in Amps
 L_iNaFast  = gNaFast .* (L_mNaFast .^ 3) .* L_hNaFast .* (L_vMembrane - eqPotNa);
 R_iNaFast  = gNaFast .* (R_mNaFast .^ 3) .* R_hNaFast .* (R_vMembrane - eqPotNa);
-
 L_iNaPers  = gNaPers .* L_mNaPers .* (L_vMembrane - eqPotNa);
 R_iNaPers  = gNaPers .* R_mNaPers .* (R_vMembrane - eqPotNa);
-
 L_iCaFast  = gCaFast .* (L_mCaFast .^ 2) .* L_hCaFast .* (L_vMembrane - eqPotCa);
 R_iCaFast  = gCaFast .* (R_mCaFast .^ 2) .* R_hCaFast .* (R_vMembrane - eqPotCa);
-
 L_iCaSlow  = gCaSlow .* (L_mCaSlow .^ 2) .* L_hCaSlow .* (L_vMembrane - eqPotCa);
 R_iCaSlow  = gCaSlow .* (R_mCaSlow .^ 2) .* R_hCaSlow .* (R_vMembrane - eqPotCa);
-
 L_iHypPol  = gHypPol .* (L_mHypPol .^ 2) .* (L_vMembrane - eqPotHypPol);
 R_iHypPol  = gHypPol .* (R_mHypPol .^ 2) .* (R_vMembrane - eqPotHypPol);
-
 L_iKDelRect = gKDelRect .* (L_mKDelRect .^ 2) .* L_hKDelRect .* (L_vMembrane - eqPotK);
 R_iKDelRect = gKDelRect .* (R_mKDelRect .^ 2) .* R_hKDelRect .* (R_vMembrane - eqPotK);
-
 L_iKPers   = gKPers .* (L_mKPers .^ 2) .* (L_vMembrane - eqPotK);
 R_iKPers   = gKPers .* (R_mKPers .^ 2) .* (R_vMembrane - eqPotK);
-
 L_iKFast   = gKFast .* (L_mKFast .^ 2) .* L_hKFast .* (L_vMembrane - eqPotK);
 R_iKFast   = gKFast .* (R_mKFast .^ 2) .* R_hKFast .* (R_vMembrane - eqPotK);
-
 L_iLeak    = gLeak .* (L_vMembrane - eqPotLeak);
 R_iLeak    = gLeak .* (R_vMembrane - eqPotLeak);
-
 L_iSynS    = gSynS .* syn_f_norm .* L_syn_g .* (L_vMembrane - eqPotSyn);
 R_iSynS    = gSynS .* syn_f_norm .* R_syn_g .* (R_vMembrane - eqPotSyn);
 
@@ -131,11 +116,13 @@ currents.L_iKFast   = L_iKFast;   currents.R_iKFast   = R_iKFast;
 currents.L_iLeak    = L_iLeak;    currents.R_iLeak    = R_iLeak;
 currents.L_iSynS    = L_iSynS;    currents.R_iSynS    = R_iSynS;
 
+% Include runtime string setup
+runtimeStr = sprintf(' (runtime: %.3f s)', runtime);
 
+% ---- Plot 1: Membrane Potentials ----
+figMem = figure('Name', ['Membrane Potentials' runtimeStr], 'NumberTitle', 'off');
+sgtitle(['Membrane Potentials' runtimeStr]); % Title at the top of the entire figure
 
-% ---- Plot (output is in V, convert to mV) ----
-figure;
-title('Membrane Potentials')
 subplot(2,1,1);
 plot(currents.time, L_vMembrane * 1e3, 'b', 'LineWidth',1.5);
 xlabel('Time (s)'); ylabel('Membrane Potential (mV)');
@@ -151,26 +138,10 @@ to_nS = 1e9;
 to_nA = 1e9;
 t = currents.time;
 
-% Include runtime in the first figure title
-runtimeStr = sprintf(' (runtime: %.3f s)', runtime);
-
-% Helper to create a 2-row grid of subplots for a set of traces on a given figure
-function create_pair_subplot(figHandle, idx, t, gL, gR, gLabel, iL, iR, iLabel, titleSuffix)
-    figure(figHandle);
-    ax1 = subplot(2,1,1);
-    plot(t, gL, 'b', 'LineWidth',1.2); hold on;
-    plot(t, gR, 'r', 'LineWidth',1.2); hold off;
-    xlabel('Time (s)'); ylabel(gLabel); title([titleSuffix ' - Conductance']); grid on;
-    legend('L','R');
-    ax2 = subplot(2,1,2);
-    plot(t, iL, 'b', 'LineWidth',1.2); hold on;
-    plot(t, iR, 'r', 'LineWidth',1.2); hold off;
-    xlabel('Time (s)'); ylabel(iLabel); title([titleSuffix ' - Current']); grid on;
-    legend('L','R');
-end
-
-% --- Sodium: put fast and persistent in one figure with two columns (each column is a pair of subplots) ---
+% --- Sodium ---
 figNa = figure('Name', ['Sodium (Na)' runtimeStr],'NumberTitle','off');
+sgtitle('Sodium (Na) Dynamics');
+
 % Left column: Fast sodium
 subplot(2,2,1);
 plot(t, gNaFast .* (L_mNaFast .^ 3) .* L_hNaFast * to_nS, 'b', 'LineWidth',1.2); hold on;
@@ -193,8 +164,9 @@ plot(t, L_iNaPers*to_nA, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_iNaPers*to_nA, 'r', 'LineWidth',1.2); hold off;
 xlabel('Time (s)'); ylabel('I_{Na,pers} (nA)'); title('Na - Persistent Current'); grid on; legend('L','R');
 
-% --- Calcium: fast and slow in one figure ---
+% --- Calcium ---
 figCa = figure('Name','Calcium (Ca)','NumberTitle','off');
+sgtitle('Calcium (Ca) Dynamics');
 
 % Fast Ca
 subplot(2,2,1);
@@ -218,8 +190,9 @@ plot(t, L_iCaSlow*to_nA, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_iCaSlow*to_nA, 'r', 'LineWidth',1.2); hold off;
 xlabel('Time (s)'); ylabel('I_{Ca,slow} (nA)'); title('Ca - Slow Current'); grid on; legend('L','R');
 
-% --- Potassium: delayed-rectifier, persistent, fast in one figure (3 columns) ---
+% --- Potassium ---
 figK = figure('Name','Potassium (K)','NumberTitle','off');
+sgtitle('Potassium (K) Dynamics');
 
 % Delayed-rectifier (column 1)
 subplot(2,3,1);
@@ -254,21 +227,25 @@ plot(t, L_iKFast*to_nA, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_iKFast*to_nA, 'r', 'LineWidth',1.2); hold off;
 xlabel('Time (s)'); ylabel('I_{K,fast} (nA)'); title('K - Fast Current'); grid on; legend('L','R');
 
-% --- Leak and Hyperpolarizing on the same figure (two rows) ---
+% --- Leak and Hyperpolarizing ---
 figMisc = figure('Name','Leak & Hyperpolarizing','NumberTitle','off');
+sgtitle('Leak Channel Properties');
 
 % Leak (row 1)
 subplot(2,1,1);
 plot(t, repmat(gLeak*to_nS,1,nT), 'k--', 'LineWidth',1.2); hold on;
-plot(t, repmat(gLeak*to_nS,1,nT), 'k--', 'LineWidth',1.2); hold off; % identical for L and R
+plot(t, repmat(gLeak*to_nS,1,nT), 'k--', 'LineWidth',1.2); hold off; 
 xlabel('Time (s)'); ylabel('g_{leak} (nS)'); title('Leak Conductance'); grid on; legend('L','R');
+
 subplot(2,1,2);
 plot(t, L_iLeak*to_nA, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_iLeak*to_nA, 'r', 'LineWidth',1.2); hold off;
 xlabel('Time (s)'); ylabel('I_{leak} (nA)'); title('Leak Current'); grid on; legend('L','R');
 
-% New figure for Hyperpolarizing plotted beneath leak's current for clarity (reuse same figMisc as subplot positions)
+% Hyperpolarizing
 figHyper = figure('Name','Hyperpolarizing','NumberTitle','off');
+sgtitle('Hyperpolarizing Current Properties');
+
 subplot(2,1,1);
 plot(t, (gHypPol .* (L_mHypPol .^ 2)) * to_nS, 'b', 'LineWidth',1.2); hold on;
 plot(t, (gHypPol .* (R_mHypPol .^ 2)) * to_nS, 'r', 'LineWidth',1.2); hold off;
@@ -279,8 +256,10 @@ plot(t, L_iHypPol*to_nA, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_iHypPol*to_nA, 'r', 'LineWidth',1.2); hold off;
 xlabel('Time (s)'); ylabel('I_{hyp} (nA)'); title('Hyperpolarizing Current'); grid on; legend('L','R');
 
-% --- Synapse in its own figure ---
+% --- Synapse ---
 figSyn = figure('Name','Synapse','NumberTitle','off');
+sgtitle('Synaptic Connection Profiles');
+
 subplot(2,1,1);
 plot(t, L_syn_g * to_nS, 'b', 'LineWidth',1.2); hold on;
 plot(t, R_syn_g * to_nS, 'r', 'LineWidth',1.2); hold off;
